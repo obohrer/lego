@@ -16,6 +16,7 @@ import (
 	"github.com/go-acme/lego/v3/challenge/dns01"
 	"github.com/go-acme/lego/v3/platform/config/env"
 	"github.com/go-acme/lego/v3/platform/wait"
+        "github.com/aws/aws-sdk-go/aws/endpoints"
 )
 
 // Config is used to configure the creation of the DNSProvider
@@ -86,9 +87,23 @@ func NewDNSProviderConfig(config *Config) (*DNSProvider, error) {
 		return nil, errors.New("route53: the configuration of the Route53 DNS provider is nil")
 	}
 
+
+  serviceResolver := func(service, region string, optFns ...func(*endpoints.Options)) (endpoints.ResolvedEndpoint, error) {
+    if service == endpoints.Route53ServiceID {
+      return endpoints.ResolvedEndpoint{
+        URL:           "https://api.route53.cn",
+        SigningRegion: region,
+        }, nil
+    }
+    return endpoints.DefaultResolver().EndpointFor(service, region, optFns...)
+  }
+
 	retry := customRetryer{}
 	retry.NumMaxRetries = config.MaxRetries
-	sessionCfg := request.WithRetryer(aws.NewConfig(), retry)
+	sessionCfg := request.WithRetryer(&aws.Config{
+    Region:           aws.String("cn-northwest-1"),
+    /*EndpointResolver: endpoints.ResolverFunc(serviceResolver),*/
+}, retry).WithRegion("cn-northwest-1")
 
 	sess, err := session.NewSessionWithOptions(session.Options{Config: *sessionCfg})
 	if err != nil {
